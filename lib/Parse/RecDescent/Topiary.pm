@@ -4,7 +4,7 @@ use strict;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.01';
+    $VERSION     = '0.02';
     @ISA         = qw(Exporter);
     @EXPORT      = qw(topiary);
     @EXPORT_OK   = qw(topiary);
@@ -72,6 +72,12 @@ Optional prefix to use for package names.
 Optional flag to upper case the first character of the rule when forming the
 class name.
 
+=item C<args>
+
+Optional user arguments passed in. These are available to the constructors,
+and the default constructor will put them into the new objects as 
+$self->{args}.
+
 =back
 
 =head1 BUGS
@@ -115,6 +121,7 @@ sub topiary {
 			default => '',
 			},
 		ucfirst => 0,
+		args => 0,
 		} );
 
 	my $tree = $par{tree};
@@ -130,6 +137,9 @@ sub topiary {
 	if ($type eq 'ARRAY') {
 		my @proto = map {topiary(%par,tree => $_)} @$tree;
 		if ($class) {
+			if (exists $par{args}) {
+				push @proto, args => $par{args};
+			}
 			$rv = $class->new(@proto);
 		}
 		else {
@@ -140,6 +150,9 @@ sub topiary {
 		my %proto = map {$_, topiary(%par, tree => $tree->{$_})} 
 			keys %$tree;
 		if ($class) {
+			if (exists $par{args}) {
+				$proto{args} = $par{args};
+			}
 			$rv = $class->new(%proto);
 		}
 		else {

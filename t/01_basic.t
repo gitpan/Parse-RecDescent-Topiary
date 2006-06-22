@@ -2,7 +2,7 @@
 
 # t/01_basic.t - basic module functionality test
 
-use Test::More tests => 6;
+use Test::More tests => 7;
 use Parse::RecDescent;
 
 #01
@@ -62,7 +62,8 @@ isa_ok($tree2, 'Foo::Bar::expr');
 $tree2 = topiary(
 		tree => $tree1,
 		namespace => 'Foo::Bar',
-		ucfirst => 1
+		ucfirst => 1,
+		args => 'wombat',
 		);
 
 #05
@@ -70,6 +71,9 @@ isa_ok($tree2, 'Foo::Bar::Expr');
 
 #06
 is($tree2->{test},'OK',"Node was constructed properly");
+
+#07
+is($tree2->{args},'wombat',"Args passed in properly");
 
 package Foo::Bar::Expr;
 
