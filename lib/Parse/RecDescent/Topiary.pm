@@ -4,13 +4,12 @@ use strict;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.02';
+    $VERSION     = '0.03';
     @ISA         = qw(Exporter);
     @EXPORT      = qw(topiary);
     @EXPORT_OK   = qw(topiary);
-    %EXPORT_TAGS = (all => [qw/topiary/]);
+    %EXPORT_TAGS = ( all => [qw/topiary/] );
 }
-
 
 =head1 NAME
 
@@ -53,7 +52,10 @@ inside out or whatever.
 
 =back
 
-=head2 topiary
+=head2 C<topiary>
+
+This is a function which recursively rebuilds an autotree returned by 
+L<Parse::RecDescent>, using constructors for each node.
 
 This exported function takes a list of option / value pairs:
 
@@ -65,18 +67,40 @@ Pass in the resulting autotree returned by a Parse::RecDescent object.
 
 =item C<namespace>
 
-Optional prefix to use for package names.
+If not specified, topiary will not use objects in the new parse tree. This
+can be specified either as a single prefix value, or a list of namespaces
+as an arrayref.
+
+As the tree is walked, each blessed node is used to form a candidate
+class name, and if such a candidate class has a constructor, i.e. if
+C<Foo::Bar::Token-E<gt>can('new')> returns true, this will be used to
+construct the new node object.
+
+If a list of namespaces are given, each one is tried in turn, until a 
+C<new> method is found. If no constructor is found, the node is built
+as a data structure, i.e. it is not blessed or constructed.
 
 =item C<ucfirst>
 
 Optional flag to upper case the first character of the rule when forming the
 class name.
 
+=item C<consolidate>
+
+Optional flag that causes topiary to reduce the nesting, unambiguously, of 
+optionally quantified productions. The production foo(?) causes generation
+of the hash entry 'foo(?)' containing an arrayref of either 0 or 1 elements
+depending whether foo was present or not in the input string.
+
+If consolidate is a true value, topiary processes this entry, and either
+generates a hash entry foo => foo_object if foo was present, or does not
+generate a hash entry if it was absent.
+
 =item C<args>
 
 Optional user arguments passed in. These are available to the constructors,
 and the default constructor will put them into the new objects as 
-$self->{args}.
+$self->{__ARGS__}.
 
 =back
 
@@ -111,61 +135,82 @@ use Params::Validate::Dummy qw();
 use Module::Optional qw(Params::Validate :all);
 use Scalar::Util qw(blessed reftype);
 
-
 sub topiary {
-	my %par = validate( @_, {
-		tree => 1,
-		namespace => {
-			regex => qr/\w+(\:\:\w+)*/,
-			type => SCALAR,
-			default => '',
-			},
-		ucfirst => 0,
-		args => 0,
-		} );
+    my %par = validate(
+        @_,
+        {   tree      => 1,
+            namespace => {
+                regex   => qr/\w+(\:\:\w+)*/,
+                type    => SCALAR | ARRAYREF,
+                default => '',
+            },
+            ucfirst     => 0,
+            args        => 0,
+            consolidate => 0,
+        }
+    );
 
-	my $tree = $par{tree};
-	my $namespace = $par{namespace};
-	my $class = blessed $tree;
-	$class = ucfirst $class if $par{ucfirst};
-	if ($class && $namespace) {
-		$class = $namespace . '::' . $class;
-	}
+    my $tree      = $par{tree};
+    my $namespace = $par{namespace};
+    my @ns = ref($namespace) ? @$namespace : ($namespace);
+    my $origpkg = blessed $tree;
+    my $class;
+    if ( $origpkg ) {
+        $origpkg = ucfirst $origpkg if $par{ucfirst};
+        for my $prefix (@ns) {
+            my $pclass = $prefix . '::' . $origpkg;
+            next unless $pclass->can('new');
+            $class = $pclass;
+            last;
+        }
+    }
 
-	my $type = reftype($tree) || '';
-	my $rv;
-	if ($type eq 'ARRAY') {
-		my @proto = map {topiary(%par,tree => $_)} @$tree;
-		if ($class) {
-			if (exists $par{args}) {
-				push @proto, args => $par{args};
-			}
-			$rv = $class->new(@proto);
-		}
-		else {
-			$rv = \@proto;
-		}
-	}
-	elsif ($type eq 'HASH') {
-		my %proto = map {$_, topiary(%par, tree => $tree->{$_})} 
-			keys %$tree;
-		if ($class) {
-			if (exists $par{args}) {
-				$proto{args} = $par{args};
-			}
-			$rv = $class->new(%proto);
-		}
-		else {
-			$rv = \%proto;
-		}
-	}
-	else {
-		$rv = $class ? $class->new($tree) : $tree;
-	}
-	return $rv;
+    my $type = reftype($tree) || '';
+    my $rv;
+    if ( $type eq 'ARRAY' ) {
+        my @proto = map { topiary( %par, tree => $_ ) } @$tree;
+        if ($class) {
+            if ( exists $par{args} ) {
+                push @proto, __ARGS__ => $par{args};
+            }
+            $rv = $class->new(@proto);
+        }
+        else {
+            $rv = \@proto;
+        }
+    }
+    elsif ( $type eq 'HASH' ) {
+        #my %proto = map { $_, topiary( %par, tree => $tree->{$_} ) }
+        my %proto = map { _consolidate_hash( $_, $tree->{$_}, \%par ) }
+            keys %$tree;
+        if ($class) {
+            if ( exists $par{args} ) {
+                $proto{__ARGS__} = $par{args};
+            }
+            $rv = $class->new(%proto);
+        }
+        else {
+            $rv = \%proto;
+        }
+    }
+    else {
+        $rv = $class ? $class->new($tree) : $tree;
+    }
+    return $rv;
 }
-	
+
+sub _consolidate_hash {
+    my ($key,$tree,$args) = @_;
+
+    return $key,topiary( %$args, tree => $tree) unless $args->{consolidate};
+    if ($key =~ /(\w+)\(\?\)$/) {
+        return () unless @$tree;
+        return $1, topiary( %$args, tree => $tree->[0]);
+    }
+    return $key,topiary( %$args, tree => $tree);
+}
 
 1;
+
 # The preceding line will help the module return a true value
 

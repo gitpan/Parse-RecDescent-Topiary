@@ -30,7 +30,10 @@ DESCRIPTION
         in the distribution, to construct hashref style objects. The user
         can always supply their own - inside out or whatever.
 
-  topiary
+  "topiary"
+    This is a function which recursively rebuilds an autotree returned by
+    Parse::RecDescent, using constructors for each node.
+
     This exported function takes a list of option / value pairs:
 
     "tree"
@@ -38,16 +41,38 @@ DESCRIPTION
         object.
 
     "namespace"
-        Optional prefix to use for package names.
+        If not specified, topiary will not use objects in the new parse
+        tree. This can be specified either as a single prefix value, or a
+        list of namespaces as an arrayref.
+
+        As the tree is walked, each blessed node is used to form a candidate
+        class name, and if such a candidate class has a constructor, i.e. if
+        "Foo::Bar::Token->can('new')" returns true, this will be used to
+        construct the new node object.
+
+        If a list of namespaces are given, each one is tried in turn, until
+        a "new" method is found. If no constructor is found, the node is
+        built as a data structure, i.e. it is not blessed or constructed.
 
     "ucfirst"
         Optional flag to upper case the first character of the rule when
         forming the class name.
 
+    "consolidate"
+        Optional flag that causes topiary to reduce the nesting,
+        unambiguously, of optionally quantified productions. The production
+        foo(?) causes generation of the hash entry 'foo(?)' containing an
+        arrayref of either 0 or 1 elements depending whether foo was present
+        or not in the input string.
+
+        If consolidate is a true value, topiary processes this entry, and
+        either generates a hash entry foo => foo_object if foo was present,
+        or does not generate a hash entry if it was absent.
+
     "args"
         Optional user arguments passed in. These are available to the
         constructors, and the default constructor will put them into the new
-        objects as $self->{args}.
+        objects as $self->{__ARGS__}.
 
 BUGS
     Please report bugs to http://rt.cpan.org

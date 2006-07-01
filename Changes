@@ -1,5 +1,10 @@
 Revision history for Perl module Parse::RecDescent::Topiary
 
+0.03 Sat Jul  1 2006
+    - Namespace can now be a search list (array ref)
+    - Consolidate option for optional quantifiers.
+    - Default constructor omits __RULE__ item.
+
 0.02 Thu Jun 22 2006
     - Pass in user args
 

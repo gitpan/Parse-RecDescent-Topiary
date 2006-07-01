@@ -1,7 +1,7 @@
 package Parse::RecDescent::Topiary::Base;
 use strict;
 
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 
 =head1 NAME
 
@@ -49,10 +49,13 @@ L<Parse::RecDescent>, L<Parse::RecDescent::Topiary>.
 =cut
 
 sub new {
-	my $pkg = shift;
-	bless { @_ }, $pkg;
+    my ($pkg,%proto) = @_;
+
+    delete $proto{__RULE__};  #This information is already in the class name
+    bless \%proto, $pkg;
 }
 
 1;
+
 # The preceding line will help the module return a true value
 
