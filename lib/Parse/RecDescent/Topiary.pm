@@ -4,11 +4,11 @@ use strict;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.03';
+    $VERSION     = '0.04';
     @ISA         = qw(Exporter);
     @EXPORT      = qw(topiary);
-    @EXPORT_OK   = qw(topiary);
-    %EXPORT_TAGS = ( all => [qw/topiary/] );
+    @EXPORT_OK   = qw(topiary delegation_class);
+    %EXPORT_TAGS = ( all => [qw/topiary delegation_class/] );
 }
 
 =head1 NAME
@@ -46,7 +46,7 @@ two different RecDescent grammars, that share some rule names.
 
 Parse::RecDescent merely blesses the data structures. It does not call a
 constructor. Parse::RecDescent::Topiary calls C<new> for each class. A base
-class, l<Parse::RecDescent::Topiary::Base> is provided in the distribution,
+class, L<Parse::RecDescent::Topiary::Base> is provided in the distribution,
 to construct hashref style objects. The user can always supply their own -
 inside out or whatever.
 
@@ -74,7 +74,7 @@ as an arrayref.
 As the tree is walked, each blessed node is used to form a candidate
 class name, and if such a candidate class has a constructor, i.e. if
 C<Foo::Bar::Token-E<gt>can('new')> returns true, this will be used to
-construct the new node object.
+construct the new node object (see L<delegation_class>).
 
 If a list of namespaces are given, each one is tried in turn, until a 
 C<new> method is found. If no constructor is found, the node is built
@@ -103,6 +103,16 @@ and the default constructor will put them into the new objects as
 $self->{__ARGS__}.
 
 =back
+
+=head2 C<delegation_class>
+
+  @class_list = qw(Foo::Bar Foo::Baz);
+  my $class = delegation_class( 'Dongle', \@class_list, 'wiggle' );
+
+This subroutine is not exported by default, and is used internally by topiary.
+C<$class> is set to C<Foo::Bar::Dongle> if 
+C<Foo::Bar::Dongle-E<gt>can('wiggle')> or set to C<Foo::Baz::Dongle> if
+C<Foo::Baz::Dongle-E<gt>can('wiggle')> or return undef if no match is found.
 
 =head1 BUGS
 
@@ -152,17 +162,12 @@ sub topiary {
 
     my $tree      = $par{tree};
     my $namespace = $par{namespace};
-    my @ns = ref($namespace) ? @$namespace : ($namespace);
-    my $origpkg = blessed $tree;
+    my @ns        = ref($namespace) ? @$namespace : ($namespace);
+    my $origpkg   = blessed $tree;
     my $class;
-    if ( $origpkg ) {
+    if ($origpkg) {
         $origpkg = ucfirst $origpkg if $par{ucfirst};
-        for my $prefix (@ns) {
-            my $pclass = $prefix . '::' . $origpkg;
-            next unless $pclass->can('new');
-            $class = $pclass;
-            last;
-        }
+        $class = delegation_class( $origpkg, \@ns, 'new' );
     }
 
     my $type = reftype($tree) || '';
@@ -180,6 +185,7 @@ sub topiary {
         }
     }
     elsif ( $type eq 'HASH' ) {
+
         #my %proto = map { $_, topiary( %par, tree => $tree->{$_} ) }
         my %proto = map { _consolidate_hash( $_, $tree->{$_}, \%par ) }
             keys %$tree;
@@ -200,14 +206,25 @@ sub topiary {
 }
 
 sub _consolidate_hash {
-    my ($key,$tree,$args) = @_;
+    my ( $key, $tree, $args ) = @_;
 
-    return $key,topiary( %$args, tree => $tree) unless $args->{consolidate};
-    if ($key =~ /(\w+)\(\?\)$/) {
+    return $key, topiary( %$args, tree => $tree ) unless $args->{consolidate};
+    if ( $key =~ /(\w+)\(\?\)$/ ) {
         return () unless @$tree;
-        return $1, topiary( %$args, tree => $tree->[0]);
+        return $1, topiary( %$args, tree => $tree->[0] );
     }
-    return $key,topiary( %$args, tree => $tree);
+    return $key, topiary( %$args, tree => $tree );
+}
+
+sub delegation_class {
+    my ( $node, $plist, $method ) = @_;
+
+    for my $prefix (@$plist) {
+        my $pclass = $prefix . '::' . $node;
+        next unless $pclass->can($method);
+        return $pclass;
+    }
+    undef;
 }
 
 1;

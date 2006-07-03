@@ -49,9 +49,9 @@ L<Parse::RecDescent>, L<Parse::RecDescent::Topiary>.
 =cut
 
 sub new {
-    my ($pkg,%proto) = @_;
+    my ( $pkg, %proto ) = @_;
 
-    delete $proto{__RULE__};  #This information is already in the class name
+    delete $proto{__RULE__};    #This information is already in the class name
     bless \%proto, $pkg;
 }
 
