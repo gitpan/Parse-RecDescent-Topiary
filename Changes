@@ -1,5 +1,8 @@
 Revision history for Perl module Parse::RecDescent::Topiary
 
+0.05 Mon May 19 2008
+    - Module Kwalitee review
+
 0.04 Mon Jul  3 2006
     - Expose delegation_class function
 

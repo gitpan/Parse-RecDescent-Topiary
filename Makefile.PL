@@ -14,4 +14,5 @@ WriteMakefile(
 		     'Module::Optional' => 0,
 		     'Scalar::Util' => 0,
                     },
+    LICENSE	 => 'perl',
 );

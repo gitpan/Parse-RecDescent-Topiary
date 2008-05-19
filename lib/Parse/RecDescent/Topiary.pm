@@ -1,10 +1,11 @@
 package Parse::RecDescent::Topiary;
 use strict;
+use warnings;
 
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.04';
+    $VERSION     = '0.05';
     @ISA         = qw(Exporter);
     @EXPORT      = qw(topiary);
     @EXPORT_OK   = qw(topiary delegation_class);
